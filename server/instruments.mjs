@@ -1,0 +1,18 @@
+export const INSTRUMENTS = [
+  { symbol: "CL=F", tvSymbol: "NYMEX:CL1!" },
+  { symbol: "BZ=F", tvSymbol: "ICEEUR:BRN1!" },
+  { symbol: "HO=F", tvSymbol: "NYMEX:HO1!" },
+  { symbol: "RB=F", tvSymbol: "NYMEX:RB1!" },
+  { symbol: "NG=F", tvSymbol: "NYMEX:NG1!" },
+  { symbol: "GC=F", tvSymbol: "COMEX:GC1!" },
+  { symbol: "SI=F", tvSymbol: "COMEX:SI1!" },
+  { symbol: "HG=F", tvSymbol: "COMEX:HG1!" },
+  { symbol: "PL=F", tvSymbol: "NYMEX:PL1!" },
+  { symbol: "PA=F", tvSymbol: "NYMEX:PA1!" },
+  { symbol: "ZC=F", tvSymbol: "CBOT:ZC1!" },
+  { symbol: "ZS=F", tvSymbol: "CBOT:ZS1!" },
+  { symbol: "ZW=F", tvSymbol: "CBOT:ZW1!" },
+  { symbol: "KC=F", tvSymbol: "ICEUS:KC1!" },
+  { symbol: "SB=F", tvSymbol: "ICEUS:SB1!" },
+  { symbol: "CC=F", tvSymbol: "ICEUS:CC1!" },
+];
