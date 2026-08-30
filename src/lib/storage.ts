@@ -2,7 +2,7 @@ import type { AlertRule, DeskCurrency } from "./types";
 
 const WATCH_KEY = "jarkkocomms-watchlist";
 const ALERT_KEY = "jarkkocomms-alerts";
-const FX_KEY = "jarkkocomms-currency";
+const FX_KEY = "jarkkocomms-fx";
 const QUOTE_KEY = "jarkkocomms-last-quotes";
 
 function read<T>(key: string, fallback: T): T {
@@ -32,7 +32,7 @@ export function saveAlerts(alerts: AlertRule[]) {
 
 export function loadCurrency(): DeskCurrency {
   const value = read<DeskCurrency | null>(FX_KEY, null);
-  return value === "EUR" || value === "GBP" || value === "JPY" || value === "CHF" || value === "USD" ? value : "USD";
+  return value === "EUR" || value === "GBP" || value === "JPY" || value === "CHF" || value === "USD" ? value : "EUR";
 }
 
 export function saveCurrency(currency: DeskCurrency) {

@@ -203,9 +203,9 @@ export default function App() {
             </svg>
           </div>
           <div>
-            <span className="eyebrow">Pit board</span>
+            <span className="eyebrow">Helsinki desk</span>
             <h1>JarkkoComms</h1>
-            <p>Oil complex and commodity futures desk</p>
+            <p>Finland-based oil desk · international book</p>
           </div>
         </div>
         <div className="desk-tools">
@@ -223,8 +223,10 @@ export default function App() {
           <div className="live-pill">
             <span className={error ? "dot stale" : "dot"} />
             <span>{error ? "Feed issue" : stale ? "Cached" : "Live"}</span>
-            <span className="clock">{formatClock(now)}</span>
-            <span>NY</span>
+            <span className="clocks">
+              <span>Helsinki <b className="clock">{formatClock(now, "Europe/Helsinki")}</b></span>
+              <span>NY <b className="clock">{formatClock(now, "America/New_York")}</b></span>
+            </span>
           </div>
         </div>
       </header>
@@ -423,8 +425,8 @@ export default function App() {
       </section>
 
       <p className="footnote">
-        Delayed futures, not for execution or advice.
-        {fetchedAt ? ` Last pull ${formatStamp(fetchedAt)}.` : ""} ECB FX via Frankfurter.
+        Delayed futures, not for execution or advice. Not a fund.
+        {fetchedAt ? ` Last pull ${formatStamp(fetchedAt)} Helsinki.` : ""} ECB FX via Frankfurter.
       </p>
     </div>
   );

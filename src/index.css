@@ -96,7 +96,13 @@ body::before {
   animation: pulse 2.4s ease-in-out infinite;
 }
 .dot.stale { background: var(--amber); animation: none; }
-.clock { font-family: var(--mono); color: var(--ink); }
+.clock { font-family: var(--mono); color: var(--ink); font-weight: 500; }
+.clocks {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.clocks span { white-space: nowrap; }
 
 .fx-switch {
   padding: 4px;

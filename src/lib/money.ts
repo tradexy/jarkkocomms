@@ -9,12 +9,20 @@ const MARK: Record<DeskCurrency, string> = {
 };
 
 export const DESK_CURRENCIES: { code: DeskCurrency; label: string; primary?: boolean }[] = [
-  { code: "USD", label: "USD", primary: true },
   { code: "EUR", label: "EUR", primary: true },
+  { code: "USD", label: "USD", primary: true },
   { code: "GBP", label: "GBP" },
   { code: "JPY", label: "JPY" },
   { code: "CHF", label: "CHF" },
 ];
+
+function numberLocale(currency: DeskCurrency) {
+  if (currency === "EUR") return "fi-FI";
+  if (currency === "GBP") return "en-GB";
+  if (currency === "CHF") return "de-CH";
+  if (currency === "JPY") return "ja-JP";
+  return "en-US";
+}
 
 function nativeToUsd(native: number, unit?: string) {
   return unit?.startsWith("¢") ? native / 100 : native;
@@ -44,7 +52,7 @@ export function formatMoney(
   const centsMode = currency === "USD" && unit?.startsWith("¢");
   const abs = Math.abs(value);
   const digits = centsMode ? 2 : abs < 10 ? 3 : currency === "JPY" ? 0 : 2;
-  const formatted = new Intl.NumberFormat("en-US", {
+  const formatted = new Intl.NumberFormat(numberLocale(currency), {
     minimumFractionDigits: centsMode || currency === "JPY" ? (centsMode ? 2 : 0) : abs < 10 ? 3 : 2,
     maximumFractionDigits: digits === 3 ? 4 : digits,
   }).format(value);
@@ -74,7 +82,7 @@ export function displayUnit(unit: string | undefined, currency: DeskCurrency) {
 export function formatDisplayAmount(value: number | null | undefined, currency: DeskCurrency, cents = false) {
   if (value == null || Number.isNaN(value)) return "—";
   const abs = Math.abs(value);
-  const formatted = new Intl.NumberFormat("en-US", {
+  const formatted = new Intl.NumberFormat(numberLocale(currency), {
     minimumFractionDigits: cents ? 2 : currency === "JPY" ? 0 : abs < 10 ? 3 : 2,
     maximumFractionDigits: cents ? 2 : currency === "JPY" ? 0 : abs < 10 ? 4 : 2,
   }).format(value);

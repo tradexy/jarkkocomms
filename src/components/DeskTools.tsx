@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isBarrelContract, positionPnl, projectionBand, shockPrice } from "../lib/desk";
 import { formatPercent, tone } from "../lib/format";
 import { formatMoney, fromDisplay, toDisplay } from "../lib/money";
@@ -32,11 +32,15 @@ export function DeskTools({ symbol, ticker, unit, quote, currency, rate }: Props
     localStorage.setItem(SIZE_KEY, size);
   }, [size]);
 
+  const primed = useRef("");
   useEffect(() => {
-    if (lastDisplay != null) setTarget(String(Number(lastDisplay.toFixed(3))));
-    // Reset the target when the contract or desk currency changes, not on every print.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol, currency]);
+    if (lastDisplay == null) return;
+    if (currency !== "USD" && rate === 1) return;
+    const key = `${symbol}:${currency}:${rate.toFixed(6)}`;
+    if (primed.current === key) return;
+    setTarget(String(Number(lastDisplay.toFixed(3))));
+    primed.current = key;
+  }, [symbol, currency, lastDisplay, rate]);
 
   const qty = Number(size);
   const targetNative = fromDisplay(Number(target), barrels ? "USD / bbl" : unit, currency, rate);

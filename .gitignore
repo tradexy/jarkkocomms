@@ -6,3 +6,6 @@ dist
 .env.*
 .wrangler
 .dev.vars
+dist/manifest.json
+dist/worker-hash.txt
+dist/_worker.js

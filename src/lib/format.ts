@@ -14,19 +14,18 @@ export function formatVolume(value: number | null | undefined) {
   return COMPACT.format(value);
 }
 
-export function formatClock(ms: number, timeZone = "America/New_York") {
-  return new Intl.DateTimeFormat("en-GB", {
+export function formatClock(ms: number, timeZone = "Europe/Helsinki") {
+  return new Intl.DateTimeFormat("fi-FI", {
     hour: "2-digit",
     minute: "2-digit",
-    second: "2-digit",
     timeZone,
     hour12: false,
   }).format(new Date(ms));
 }
 
-export function formatStamp(ms: number, timeZone = "America/New_York") {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
+export function formatStamp(ms: number, timeZone = "Europe/Helsinki") {
+  return new Intl.DateTimeFormat("fi-FI", {
+    day: "numeric",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
