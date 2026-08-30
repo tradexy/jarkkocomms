@@ -6,7 +6,7 @@ function pickModel(requested) {
   return requested === PRO ? PRO : FLASH;
 }
 async function runBrief({ key, model, messages }) {
-  if (!key || typeof key !== "string") {
+  if (!key || typeof key !== "string" || !key.trim()) {
     const error = new Error("DeepSeek key missing");
     error.status = 401;
     throw error;
@@ -353,7 +353,7 @@ var pages_worker_default = {
       if (url.pathname === "/api/brief") {
         if (request.method !== "POST") return Response.json({ error: "POST required" }, { status: 405 });
         const body = await request.json();
-        const key = request.headers.get("x-deepseek-key") || env.DEEPSEEK_API_KEY || "";
+        const key = request.headers.get("x-deepseek-key") || "";
         return Response.json(
           await runBrief({
             key,

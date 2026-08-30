@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { BriefPanel } from "./components/BriefPanel";
 import { DeskTools } from "./components/DeskTools";
 import { PriceChart } from "./components/PriceChart";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -294,8 +293,7 @@ export default function App() {
   }
 
   async function runDeskBrief(kind: "contract" | "spread") {
-    if (!apiKey) {
-      setBriefError(copy.briefNeedKey);
+    if (!apiKey.trim()) {
       return;
     }
     setBriefBusy(true);
@@ -396,8 +394,8 @@ export default function App() {
               <span>NY <b className="clock">{formatClock(now, "America/New_York")}</b></span>
             </span>
           </div>
-          <button type="button" className="chip" onClick={() => setSettingsOpen(true)}>
-            {copy.settings}
+          <button type="button" className="ghost extras-link" onClick={() => setSettingsOpen(true)}>
+            {copy.extras}
           </button>
         </div>
       </header>
@@ -519,15 +517,6 @@ export default function App() {
             rate={rate}
             copy={copy}
           />
-          <BriefPanel
-            copy={copy}
-            hasKey={Boolean(apiKey) && provider === "deepseek"}
-            busy={briefBusy}
-            text={brief}
-            error={briefError}
-            onBriefContract={() => void runDeskBrief("contract")}
-            onBriefSpread={() => void runDeskBrief("spread")}
-          />
           <section className="panel">
             <h2>{copy.watchlist}</h2>
             {watchlist.map((symbol) => {
@@ -648,6 +637,11 @@ export default function App() {
           saveDeepSeekKey("");
           setApiKey("");
         }}
+        briefBusy={briefBusy}
+        briefText={brief}
+        briefError={briefError}
+        onBriefContract={() => void runDeskBrief("contract")}
+        onBriefSpread={() => void runDeskBrief("spread")}
       />
     </div>
   );

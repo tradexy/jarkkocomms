@@ -4,7 +4,7 @@ export async function onRequest({ request, env }) {
   if (request.method !== "POST") {
     return Response.json({ error: "POST required" }, { status: 405 });
   }
-  const key = request.headers.get("x-deepseek-key") || env?.DEEPSEEK_API_KEY || "";
+  const key = request.headers.get("x-deepseek-key") || "";
   try {
     const body = await request.json();
     const result = await runBrief({

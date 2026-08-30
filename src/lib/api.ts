@@ -28,8 +28,10 @@ export async function requestBrief(
   body: { prompt: string; model: string; context: unknown },
   key: string,
 ) {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (key) headers["x-deepseek-key"] = key;
+  if (!key.trim()) {
+    throw new Error("No DeepSeek key — desk stays free");
+  }
+  const headers: Record<string, string> = { "Content-Type": "application/json", "x-deepseek-key": key.trim() };
   const response = await fetch("/api/brief", {
     method: "POST",
     headers,

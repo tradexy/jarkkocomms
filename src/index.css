@@ -388,6 +388,14 @@ body::before {
   padding: 10px;
 }
 .lang-switch button { min-width: 44px; }
+.extras-link {
+  color: var(--faint);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-align: right;
+  padding: 2px 0;
+  opacity: 0.85;
+}
 
 @media (max-width: 980px) {
   .hero, .workspace, .grid, .details { grid-template-columns: 1fr 1fr; }
