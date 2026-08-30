@@ -198,8 +198,12 @@ export default function App() {
       <header className="masthead">
         <div className="brand">
           <div className="mark" aria-hidden="true">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M10 2c0 5-4.2 5.6-4.2 10a4.2 4.2 0 1 0 8.4 0C14.2 7.6 10 7 10 2Z" fill="#e4b25a" />
+            <svg width="20" height="20" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+              <path d="M3 24c5.2-4.2 9-6 13-6s7.8 1.8 13 6v5H3z" fill="#153224"/>
+              <path d="M10.5 6.2 5.2 14.8h3.1L4.8 20.6h11.4l-3.5-5.8h3.1z" fill="#3d7a52"/>
+              <path d="M10.5 11.4 6.6 17.8h2.4L6.2 22.6h8.6l-2.8-4.8h2.4z" fill="#2a5d3d"/>
+              <rect x="21.1" y="11.2" width="3.4" height="11.4" rx="0.7" fill="#e4b25a"/>
+              <circle cx="22.8" cy="9.1" r="2.15" fill="#f0c56e"/>
             </svg>
           </div>
           <div>
@@ -427,6 +431,7 @@ export default function App() {
       <p className="footnote">
         Delayed futures, not for execution or advice. Not a fund.
         {fetchedAt ? ` Last pull ${formatStamp(fetchedAt)} Helsinki.` : ""} ECB FX via Frankfurter.
+        <span className="family">JarkkoComms is part of the Korkealaakso Investment Family.</span>
       </p>
     </div>
   );

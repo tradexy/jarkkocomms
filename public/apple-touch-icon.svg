@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="JarkkoComms">
+  <rect width="180" height="180" rx="40" fill="#070604"/>
+  <path d="M16 136c30-24 51-34 74-34s44 10 74 34v30H16z" fill="#153224"/>
+  <path d="M59 34 29 83h18L27 116h64l-20-33h18z" fill="#3d7a52"/>
+  <path d="M59 64 37 100h14L35 127h48l-16-27h14z" fill="#2a5d3d"/>
+  <rect x="119" y="62" width="19" height="64" rx="4" fill="#e4b25a"/>
+  <circle cx="128.5" cy="51" r="12" fill="#f0c56e"/>
+</svg>

@@ -309,6 +309,12 @@ body::before {
 .down { color: var(--down); }
 .flat { color: var(--flat); }
 .footnote { margin-top: 28px; color: var(--faint); font-size: 0.8rem; }
+.family {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
 .subhead { margin: 16px 0 6px; font-family: var(--serif); font-size: 1.05rem; }
 .desk-form label { display: grid; gap: 4px; color: var(--faint); font-size: 0.75rem; }
 .scenario-grid {
