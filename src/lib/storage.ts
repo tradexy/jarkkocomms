@@ -1,3 +1,5 @@
+import type { LlmModelId, LlmProviderId } from "./llm";
+import { DEFAULT_DEEPSEEK_MODEL, isDeepSeekModel } from "./llm";
 import type { AlertRule, DeskCurrency } from "./types";
 
 const WATCH_KEY = "jarkkocomms-watchlist";
@@ -45,4 +47,50 @@ export function loadCachedQuotes() {
 
 export function saveCachedQuotes(quotes: import("./types").Quote[], fetchedAt: number) {
   localStorage.setItem(QUOTE_KEY, JSON.stringify({ quotes, fetchedAt }));
+}
+
+const KEY_KEY = "jarkkocomms-deepseek-key";
+const MODEL_KEY = "jarkkocomms-llm-model";
+const PROVIDER_KEY = "jarkkocomms-llm-provider";
+
+export function loadDeepSeekKey() {
+  try {
+    return localStorage.getItem(KEY_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function saveDeepSeekKey(key: string) {
+  if (!key) {
+    localStorage.removeItem(KEY_KEY);
+    return;
+  }
+  localStorage.setItem(KEY_KEY, key);
+}
+
+export function loadLlmModel(): LlmModelId {
+  try {
+    const value = localStorage.getItem(MODEL_KEY);
+    return isDeepSeekModel(value) ? value : DEFAULT_DEEPSEEK_MODEL;
+  } catch {
+    return DEFAULT_DEEPSEEK_MODEL;
+  }
+}
+
+export function saveLlmModel(model: LlmModelId) {
+  localStorage.setItem(MODEL_KEY, model);
+}
+
+export function loadLlmProvider(): LlmProviderId {
+  try {
+    const value = localStorage.getItem(PROVIDER_KEY);
+    return value === "openai" || value === "azure" || value === "deepseek" ? value : "deepseek";
+  } catch {
+    return "deepseek";
+  }
+}
+
+export function saveLlmProvider(provider: LlmProviderId) {
+  localStorage.setItem(PROVIDER_KEY, provider);
 }

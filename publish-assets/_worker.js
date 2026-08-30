@@ -1,3 +1,45 @@
+// server/brief.mjs
+var DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
+var FLASH = "deepseek-v4-flash";
+var PRO = "deepseek-v4-pro";
+function pickModel(requested) {
+  return requested === PRO ? PRO : FLASH;
+}
+async function runBrief({ key, model, messages }) {
+  if (!key || typeof key !== "string") {
+    const error = new Error("DeepSeek key missing");
+    error.status = 401;
+    throw error;
+  }
+  const allowed = pickModel(model);
+  const response = await fetch(DEEPSEEK_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`
+    },
+    body: JSON.stringify({
+      model: allowed,
+      messages,
+      stream: false,
+      max_tokens: 500,
+      thinking: { type: "disabled" }
+    })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = payload?.error?.message || `DeepSeek ${response.status}`;
+    const error = new Error(message);
+    error.status = response.status === 401 ? 401 : 502;
+    throw error;
+  }
+  return {
+    text: payload?.choices?.[0]?.message?.content ?? "",
+    model: allowed,
+    billedTo: "your DeepSeek account"
+  };
+}
+
 // server/instruments.mjs
 var INSTRUMENTS = [
   { symbol: "CL=F", tvSymbol: "NYMEX:CL1!" },
@@ -307,6 +349,24 @@ var pages_worker_default = {
       }
       if (url.pathname === "/api/fx") {
         return Response.json(await fetchFx());
+      }
+      if (url.pathname === "/api/brief") {
+        if (request.method !== "POST") return Response.json({ error: "POST required" }, { status: 405 });
+        const body = await request.json();
+        const key = request.headers.get("x-deepseek-key") || env.DEEPSEEK_API_KEY || "";
+        return Response.json(
+          await runBrief({
+            key,
+            model: body?.model,
+            messages: [
+              { role: "system", content: "You are a concise commodities desk assistant. Not investment advice. Use only the supplied quotes." },
+              { role: "user", content: `${body?.prompt ?? ""}
+
+Context:
+${JSON.stringify(body?.context ?? {})}` }
+            ]
+          })
+        );
       }
     } catch (error) {
       return Response.json({ error: error instanceof Error ? error.message : "API failed" }, { status: 502 });

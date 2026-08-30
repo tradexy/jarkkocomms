@@ -1,12 +1,33 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { BriefPanel } from "./components/BriefPanel";
 import { DeskTools } from "./components/DeskTools";
 import { PriceChart } from "./components/PriceChart";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { Sparkline } from "./components/Sparkline";
-import { CATEGORY_LABEL, INSTRUMENTS, SYMBOLS, type Category, instrumentBySymbol } from "./data/instruments";
-import { loadChart, loadFx, loadQuotes } from "./lib/api";
+import { VoiceBar } from "./components/VoiceBar";
+import { INSTRUMENTS, SYMBOLS, instrumentBySymbol, instrumentName } from "./data/instruments";
+import { loadChart, loadFx, loadQuotes, requestBrief } from "./lib/api";
 import { crackSpread321, formatClock, formatPercent, formatStamp, formatVolume, tone } from "./lib/format";
+import { COPY, detectLang, fill, saveLang, type Lang } from "./lib/i18n";
+import type { LlmModelId, LlmProviderId } from "./lib/llm";
 import { DESK_CURRENCIES, displayUnit, formatMoney, formatSigned, fromDisplay, localSpark, toDisplay } from "./lib/money";
-import { loadAlerts, loadCachedQuotes, loadCurrency, loadWatchlist, saveAlerts, saveCachedQuotes, saveCurrency, saveWatchlist } from "./lib/storage";
+import { listenOnce, parseVoiceCommand, recognitionSupported, speakText, speechSupported, stopSpeech } from "./lib/speech";
+import {
+  loadAlerts,
+  loadCachedQuotes,
+  loadCurrency,
+  loadDeepSeekKey,
+  loadLlmModel,
+  loadLlmProvider,
+  loadWatchlist,
+  saveAlerts,
+  saveCachedQuotes,
+  saveCurrency,
+  saveDeepSeekKey,
+  saveLlmModel,
+  saveLlmProvider,
+  saveWatchlist,
+} from "./lib/storage";
 import { synthesizeHistory } from "./lib/sketch";
 import type { AlertRule, ChartPoint, ChartSeries, DeskCurrency, Quote, RangeKey } from "./lib/types";
 
@@ -28,12 +49,13 @@ export default function App() {
   const [quotes, setQuotes] = useState<Quote[]>(cached?.quotes ?? []);
   const [fetchedAt, setFetchedAt] = useState<number | null>(cached?.fetchedAt ?? null);
   const [stale, setStale] = useState(Boolean(cached?.quotes.length));
+  const [offline, setOffline] = useState(typeof navigator !== "undefined" ? !navigator.onLine : false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState("CL=F");
   const [range, setRange] = useState<RangeKey>("1mo");
   const [chart, setChart] = useState<ChartSeries | null>(null);
   const [overlay, setOverlay] = useState<ChartPoint[]>([]);
-  const [filter, setFilter] = useState<Category | "all">("all");
+  const [filter, setFilter] = useState<import("./data/instruments").Category | "all">("all");
   const [query, setQuery] = useState("");
   const [watchlist, setWatchlist] = useState<string[]>(loadWatchlist);
   const [alerts, setAlerts] = useState<AlertRule[]>(loadAlerts);
@@ -42,8 +64,20 @@ export default function App() {
   const [currency, setCurrency] = useState<DeskCurrency>(loadCurrency);
   const [rates, setRates] = useState<Partial<Record<DeskCurrency, number>>>({ USD: 1 });
   const [now, setNow] = useState(Date.now());
+  const [lang, setLang] = useState<Lang>(detectLang);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [provider, setProvider] = useState<LlmProviderId>(loadLlmProvider);
+  const [model, setModel] = useState<LlmModelId>(loadLlmModel);
+  const [apiKey, setApiKey] = useState(loadDeepSeekKey);
+  const [speaking, setSpeaking] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [heard, setHeard] = useState("");
+  const [brief, setBrief] = useState("");
+  const [briefBusy, setBriefBusy] = useState(false);
+  const [briefError, setBriefError] = useState<string | null>(null);
   const alertsRef = useRef(alerts);
   alertsRef.current = alerts;
+  const copy = COPY[lang];
 
   const quoteMap = useMemo(() => bySymbol(quotes), [quotes]);
   const selectedQuote = quoteMap.get(selected);
@@ -54,10 +88,22 @@ export default function App() {
     formatMoney(native, symbol ? instrumentBySymbol(symbol)?.unit : unit, currency, rate);
   const signed = (native: number | null | undefined, symbol?: string) =>
     formatSigned(native, symbol ? instrumentBySymbol(symbol)?.unit : "USD / bbl", currency, rate);
+  const named = (symbol: string) => instrumentName(instrumentBySymbol(symbol), lang);
 
   useEffect(() => {
     const tick = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(tick);
+  }, []);
+
+  useEffect(() => {
+    const goOnline = () => setOffline(false);
+    const goOffline = () => setOffline(true);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
   }, []);
 
   useEffect(() => {
@@ -81,11 +127,18 @@ export default function App() {
         setQuotes(payload.quotes);
         setFetchedAt(payload.fetchedAt);
         setStale(false);
+        setOffline(false);
         saveCachedQuotes(payload.quotes, payload.fetchedAt);
-        setError(payload.errors.length ? `Partial feed: ${payload.errors.map((item) => item.symbol).join(", ")}` : null);
+        setError(payload.errors.length ? `${copy.partialFeed}: ${payload.errors.map((item) => item.symbol).join(", ")}` : null);
         evaluateAlerts(payload.quotes);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Could not load market data");
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : copy.feedIssue);
+          if (cached?.quotes.length || quotes.length) {
+            setStale(true);
+            setOffline(!navigator.onLine);
+          }
+        }
       }
     }
     refresh();
@@ -94,7 +147,8 @@ export default function App() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,13 +179,15 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-    // quoteMap is read only for sketch fallback after a failed fetch
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, range]);
 
   useEffect(() => saveWatchlist(watchlist), [watchlist]);
   useEffect(() => saveAlerts(alerts), [alerts]);
   useEffect(() => saveCurrency(currency), [currency]);
+  useEffect(() => saveLang(lang), [lang]);
+  useEffect(() => saveLlmModel(model), [model]);
+  useEffect(() => saveLlmProvider(provider), [provider]);
 
   function evaluateAlerts(nextQuotes: Quote[]) {
     const map = bySymbol(nextQuotes);
@@ -148,7 +204,7 @@ export default function App() {
     if (fired.length) {
       setAlerts(next);
       if ("Notification" in window && Notification.permission === "granted") {
-        new Notification("JarkkoComms alert", { body: fired.join(" · ") });
+        new Notification("JarkkoComms", { body: fired.join(" · ") });
       }
     }
   }
@@ -179,6 +235,104 @@ export default function App() {
     setAlertPrice("");
   }
 
+  function changeLang(next: Lang) {
+    setLang(next);
+    document.documentElement.lang = next === "fi" ? "fi" : "en";
+  }
+
+  function speakSelected() {
+    if (!speechSupported()) return;
+    const name = named(selected) || selected;
+    const last = money(selectedQuote?.price, selected);
+    const change = formatPercent(selectedQuote?.changePercent);
+    const hel = formatClock(now, "Europe/Helsinki");
+    const ny = formatClock(now, "America/New_York");
+    const text =
+      lang === "fi"
+        ? `${name}, viimeisin ${last}, muutos ${change}, valuutta ${currency}. Helsinki ${hel}, New York ${ny}.`
+        : `${name}, last ${last}, change ${change}, currency ${currency}. Helsinki ${hel}, New York ${ny}.`;
+    setSpeaking(true);
+    speakText(text, lang);
+    window.setTimeout(() => setSpeaking(false), 8000);
+  }
+
+  function speakOil() {
+    if (!speechSupported()) return;
+    const wtiText = money(quoteMap.get("CL=F")?.price, "CL=F");
+    const brentText = money(quoteMap.get("BZ=F")?.price, "BZ=F");
+    const spreadVal =
+      quoteMap.get("CL=F")?.price != null && quoteMap.get("BZ=F")?.price != null
+        ? (quoteMap.get("BZ=F")?.price ?? 0) - (quoteMap.get("CL=F")?.price ?? 0)
+        : null;
+    const spreadText = money(spreadVal, "CL=F");
+    const text =
+      lang === "fi"
+        ? `Öljy. WTI ${wtiText}, Brent ${brentText}, Brent–WTI-ero ${spreadText}.`
+        : `Oil board. WTI ${wtiText}, Brent ${brentText}, Brent–WTI spread ${spreadText}.`;
+    setSpeaking(true);
+    speakText(text, lang);
+    window.setTimeout(() => setSpeaking(false), 8000);
+  }
+
+  async function onListen() {
+    if (!recognitionSupported() || listening) return;
+    setListening(true);
+    try {
+      const transcript = await listenOnce(lang);
+      setHeard(transcript);
+      const command = parseVoiceCommand(transcript);
+      if (command?.type === "select") setSelected(command.symbol);
+      if (command?.type === "watch") toggleWatch(command.symbol);
+      if (command?.type === "fx") setCurrency(command.currency);
+      if (command?.type === "speak") speakSelected();
+      if (command?.type === "speakOil") speakOil();
+    } catch {
+      setHeard("");
+    } finally {
+      setListening(false);
+    }
+  }
+
+  async function runDeskBrief(kind: "contract" | "spread") {
+    if (!apiKey) {
+      setBriefError(copy.briefNeedKey);
+      return;
+    }
+    setBriefBusy(true);
+    setBriefError(null);
+    const context = {
+      currency,
+      selected,
+      selectedName: named(selected),
+      quotes: quotes.map((quote) => ({
+        symbol: quote.symbol,
+        name: named(quote.symbol),
+        price: money(quote.price, quote.symbol),
+        changePercent: quote.changePercent,
+      })),
+      spread:
+        quoteMap.get("CL=F")?.price != null && quoteMap.get("BZ=F")?.price != null
+          ? (quoteMap.get("BZ=F")?.price ?? 0) - (quoteMap.get("CL=F")?.price ?? 0)
+          : null,
+    };
+    const prompt =
+      kind === "spread"
+        ? lang === "fi"
+          ? "Selitä lyhyesti, mitä tämän päivän Brent–WTI-ero tarkoittaa. Ei sijoitusneuvoa."
+          : "Briefly explain what today's Brent–WTI spread means. Not investment advice."
+        : lang === "fi"
+          ? `Briefaa sopimus ${named(selected)} viimeisimmällä noteerauksella. Ei sijoitusneuvoa.`
+          : `Brief the contract ${named(selected)} from the latest print. Not investment advice.`;
+    try {
+      const result = await requestBrief({ prompt, model, context }, apiKey);
+      setBrief(result.text);
+    } catch (err) {
+      setBriefError(err instanceof Error ? err.message : copy.feedIssue);
+    } finally {
+      setBriefBusy(false);
+    }
+  }
+
   const wti = quoteMap.get("CL=F");
   const brent = quoteMap.get("BZ=F");
   const heating = quoteMap.get("HO=F");
@@ -186,12 +340,14 @@ export default function App() {
   const spread = wti?.price != null && brent?.price != null ? brent.price - wti.price : null;
   const crack = crackSpread321(wti?.price ?? null, gasoline?.price ?? null, heating?.price ?? null);
   const visible = INSTRUMENTS.filter((item) => {
-    const hay = `${item.ticker} ${item.name} ${item.symbol}`.toLowerCase();
+    const hay = `${item.ticker} ${item.name} ${item.nameFi} ${item.symbol}`.toLowerCase();
     return hay.includes(query.trim().toLowerCase()) && (filter === "all" || item.category === filter);
   });
   const tape = quotes.length ? [...quotes, ...quotes] : [];
   const chartPoints = chart?.points?.length ? chart.points : synthesizeHistory(selectedQuote, range);
   const overlayName = selected === "CL=F" ? "Brent" : selected === "BZ=F" ? "WTI" : undefined;
+  const statusLabel = error ? copy.feedIssue : offline || stale ? copy.offline : copy.live;
+  const canListen = recognitionSupported();
 
   return (
     <div className="app">
@@ -207,13 +363,21 @@ export default function App() {
             </svg>
           </div>
           <div>
-            <span className="eyebrow">Helsinki desk</span>
+            <span className="eyebrow">{copy.eyebrow}</span>
             <h1>JarkkoComms</h1>
-            <p>Finland-based oil desk · international book</p>
+            <p>{copy.tagline}</p>
           </div>
         </div>
         <div className="desk-tools">
-          <div className="fx-switch" role="group" aria-label="Display currency">
+          <div className="fx-switch lang-switch" role="group" aria-label={copy.language}>
+            <button className={lang === "fi" ? "active" : ""} onClick={() => changeLang("fi")}>
+              FI
+            </button>
+            <button className={lang === "en" ? "active" : ""} onClick={() => changeLang("en")}>
+              EN
+            </button>
+          </div>
+          <div className="fx-switch" role="group" aria-label={copy.currency}>
             {DESK_CURRENCIES.map((item) => (
               <button
                 key={item.code}
@@ -225,15 +389,35 @@ export default function App() {
             ))}
           </div>
           <div className="live-pill">
-            <span className={error ? "dot stale" : "dot"} />
-            <span>{error ? "Feed issue" : stale ? "Cached" : "Live"}</span>
+            <span className={error || offline || stale ? "dot stale" : "dot"} />
+            <span>{statusLabel}</span>
             <span className="clocks">
               <span>Helsinki <b className="clock">{formatClock(now, "Europe/Helsinki")}</b></span>
               <span>NY <b className="clock">{formatClock(now, "America/New_York")}</b></span>
             </span>
           </div>
+          <button type="button" className="chip" onClick={() => setSettingsOpen(true)}>
+            {copy.settings}
+          </button>
         </div>
       </header>
+
+      {speechSupported() && (
+        <VoiceBar
+          copy={copy}
+          canListen={canListen}
+          listening={listening}
+          speaking={speaking}
+          heard={heard}
+          onSpeak={speakSelected}
+          onSpeakOil={speakOil}
+          onStop={() => {
+            stopSpeech();
+            setSpeaking(false);
+          }}
+          onListen={() => void onListen()}
+        />
+      )}
 
       {tape.length > 0 && (
         <div className="ticker" aria-hidden="true">
@@ -251,41 +435,41 @@ export default function App() {
 
       <section className="hero">
         <button className="stat primary" onClick={() => setSelected("CL=F")}>
-          <div className="kicker"><span>WTI crude</span><span>CL=F</span></div>
+          <div className="kicker"><span>{copy.wti}</span><span>CL=F</span></div>
           <div className="value">{money(wti?.price, "CL=F")}</div>
           <div className={tone(wti?.changePercent)}>
             {signed(wti?.change, "CL=F")} · {formatPercent(wti?.changePercent)}
           </div>
-          <small>{wti?.name ?? "Front-month futures"}</small>
+          <small>{named("CL=F") || copy.frontMonth}</small>
         </button>
         <button className="stat" onClick={() => setSelected("BZ=F")}>
-          <div className="kicker"><span>Brent</span><span>ICE</span></div>
+          <div className="kicker"><span>{copy.brent}</span><span>ICE</span></div>
           <div className="value">{money(brent?.price, "BZ=F")}</div>
           <div className={tone(brent?.changePercent)}>
             {signed(brent?.change, "BZ=F")} · {formatPercent(brent?.changePercent)}
           </div>
-          <small>North Sea benchmark</small>
+          <small>{copy.northSea}</small>
         </button>
         <div className="stat">
-          <div className="kicker"><span>Brent–WTI</span><span>Spread</span></div>
+          <div className="kicker"><span>{copy.spread}</span><span>{copy.spreadKicker}</span></div>
           <div className="value">{money(spread, "CL=F")}</div>
-          <div className={tone(spread)}>{spread == null ? "Waiting for both legs" : spread >= 0 ? "Brent premium" : "WTI premium"}</div>
-          <small>Inter-crude differential</small>
+          <div className={tone(spread)}>{spread == null ? copy.waitingBoth : spread >= 0 ? copy.brentPremium : copy.wtiPremium}</div>
+          <small>{copy.interCrude}</small>
         </div>
         <div className="stat">
-          <div className="kicker"><span>3-2-1 crack</span><span>Refining</span></div>
+          <div className="kicker"><span>{copy.crack}</span><span>{copy.refining}</span></div>
           <div className="value">{money(crack, "CL=F")}</div>
-          <div className={tone(crack)}>per barrel</div>
-          <small>2 gasoline + 1 heating oil − 3 WTI</small>
+          <div className={tone(crack)}>{copy.perBarrel}</div>
+          <small>{copy.crackNote}</small>
         </div>
       </section>
 
-      {error && <div className="banner">{error}. Retrying every 30 seconds.</div>}
+      {error && <div className="banner">{error}. {copy.retrying}</div>}
 
       <div className="workspace">
         <section className="panel">
           <div className="panel-head">
-            <h2>Price history</h2>
+            <h2>{copy.history}</h2>
             <div className="ranges">
               {RANGES.map((item) => (
                 <button key={item.key} className={item.key === range ? "chip active" : "chip"} onClick={() => setRange(item.key)}>
@@ -296,10 +480,10 @@ export default function App() {
           </div>
           <div className="chart-meta">
             <h3>
-              {selectedInstrument?.name ?? selected} <span>{displayUnit(unit, currency)}</span>
+              {named(selected) || selected} <span>{displayUnit(unit, currency)}</span>
             </h3>
             <span>
-              {selectedQuote ? `${money(selectedQuote.price)} · ${formatPercent(selectedQuote.changePercent)}` : "Waiting for last print…"}
+              {selectedQuote ? `${money(selectedQuote.price)} · ${formatPercent(selectedQuote.changePercent)}` : copy.waitingPrint}
             </span>
           </div>
           <PriceChart
@@ -311,15 +495,17 @@ export default function App() {
             currency={currency}
             rate={rate}
             source={chart?.source ?? (chartPoints.length ? "sketch" : undefined)}
+            sketchLabel={copy.sketch}
+            historyLabel={copy.historyNote}
           />
           <dl className="details">
-            <div><dt>Session high</dt><dd>{money(selectedQuote?.dayHigh)}</dd></div>
-            <div><dt>Session low</dt><dd>{money(selectedQuote?.dayLow)}</dd></div>
+            <div><dt>{copy.sessionHigh}</dt><dd>{money(selectedQuote?.dayHigh)}</dd></div>
+            <div><dt>{copy.sessionLow}</dt><dd>{money(selectedQuote?.dayLow)}</dd></div>
             <div>
-              <dt>52-week</dt>
+              <dt>{copy.week52}</dt>
               <dd>{money(selectedQuote?.week52Low)} – {money(selectedQuote?.week52High)}</dd>
             </div>
-            <div><dt>Volume</dt><dd>{formatVolume(selectedQuote?.volume)}</dd></div>
+            <div><dt>{copy.volume}</dt><dd>{formatVolume(selectedQuote?.volume)}</dd></div>
           </dl>
         </section>
 
@@ -331,9 +517,19 @@ export default function App() {
             quote={selectedQuote}
             currency={currency}
             rate={rate}
+            copy={copy}
+          />
+          <BriefPanel
+            copy={copy}
+            hasKey={Boolean(apiKey) && provider === "deepseek"}
+            busy={briefBusy}
+            text={brief}
+            error={briefError}
+            onBriefContract={() => void runDeskBrief("contract")}
+            onBriefSpread={() => void runDeskBrief("spread")}
           />
           <section className="panel">
-            <h2>Watchlist</h2>
+            <h2>{copy.watchlist}</h2>
             {watchlist.map((symbol) => {
               const quote = quoteMap.get(symbol);
               const instrument = instrumentBySymbol(symbol);
@@ -341,7 +537,7 @@ export default function App() {
                 <button key={symbol} className="watch-row" onClick={() => setSelected(symbol)}>
                   <span>
                     <b>{instrument?.ticker ?? symbol}</b>
-                    <div className="name">{instrument?.name}</div>
+                    <div className="name">{instrumentName(instrument, lang)}</div>
                   </span>
                   <span className={tone(quote?.changePercent)}>
                     {money(quote?.price, symbol)}
@@ -353,32 +549,32 @@ export default function App() {
           </section>
 
           <section className="panel">
-            <h2>Price alerts</h2>
-            <p className="name">Notify when {selectedInstrument?.ticker ?? selected} crosses a {currency} level.</p>
+            <h2>{copy.alerts}</h2>
+            <p className="name">{fill(copy.notifyWhen, { ticker: selectedInstrument?.ticker ?? selected, currency })}</p>
             <form className="alert-form" onSubmit={addAlert}>
               <select value={alertDirection} onChange={(event) => setAlertDirection(event.target.value as AlertRule["direction"])}>
-                <option value="above">Above</option>
-                <option value="below">Below</option>
+                <option value="above">{copy.above}</option>
+                <option value="below">{copy.below}</option>
               </select>
               <input
                 inputMode="decimal"
                 placeholder={(() => {
                   const shown = toDisplay(selectedQuote?.price, unit, currency, rate);
-                  return shown == null ? "Price" : String(Number(shown.toFixed(4)));
+                  return shown == null ? copy.target : String(Number(shown.toFixed(4)));
                 })()}
                 value={alertPrice}
                 onChange={(event) => setAlertPrice(event.target.value)}
               />
-              <button type="submit">Add alert</button>
+              <button type="submit">{copy.addAlert}</button>
             </form>
             {alerts.map((rule) => (
               <div className="alert-row" key={rule.id}>
                 <span>
-                  {instrumentBySymbol(rule.symbol)?.ticker ?? rule.symbol} {rule.direction} {money(rule.price, rule.symbol)}
-                  <div className="name">{rule.triggeredAt ? `Hit ${formatStamp(rule.triggeredAt)}` : "Armed"}</div>
+                  {instrumentBySymbol(rule.symbol)?.ticker ?? rule.symbol} {rule.direction === "above" ? copy.above : copy.below} {money(rule.price, rule.symbol)}
+                  <div className="name">{rule.triggeredAt ? `${copy.hit} ${formatStamp(rule.triggeredAt)}` : copy.armed}</div>
                 </span>
                 <button className="ghost" onClick={() => setAlerts((current) => current.filter((item) => item.id !== rule.id))}>
-                  Remove
+                  {copy.remove}
                 </button>
               </div>
             ))}
@@ -390,11 +586,11 @@ export default function App() {
         <div className="filters">
           {(["all", "energy", "metals", "agriculture"] as const).map((key) => (
             <button key={key} className={filter === key ? "chip active" : "chip"} onClick={() => setFilter(key)}>
-              {CATEGORY_LABEL[key]}
+              {key === "all" ? copy.allMarkets : copy[key]}
             </button>
           ))}
         </div>
-        <input className="search" placeholder="Search crude, metals, grains…" value={query} onChange={(event) => setQuery(event.target.value)} />
+        <input className="search" placeholder={copy.search} value={query} onChange={(event) => setQuery(event.target.value)} />
       </div>
 
       <section className="grid">
@@ -407,12 +603,12 @@ export default function App() {
               <div className="card-top">
                 <button className="ghost" onClick={() => setSelected(instrument.symbol)}>
                   <b>{instrument.ticker}</b>
-                  <div className="name">{instrument.name}</div>
+                  <div className="name">{instrumentName(instrument, lang)}</div>
                 </button>
                 <button
                   className={watched ? "icon-btn active" : "icon-btn"}
                   onClick={() => toggleWatch(instrument.symbol)}
-                  aria-label={watched ? "Remove from watchlist" : "Add to watchlist"}
+                  aria-label={watched ? copy.removeWatch : copy.addWatch}
                 >
                   ★
                 </button>
@@ -429,10 +625,30 @@ export default function App() {
       </section>
 
       <p className="footnote">
-        Delayed futures, not for execution or advice. Not a fund.
-        {fetchedAt ? ` Last pull ${formatStamp(fetchedAt)} Helsinki.` : ""} ECB FX via Frankfurter.
-        <span className="family">JarkkoComms is part of the Korkealaakso Investment Family.</span>
+        {copy.footer}
+        {fetchedAt ? ` ${fill(copy.lastPull, { time: formatStamp(fetchedAt) })}` : ""} {copy.fxNote}
+        <span className="family">{copy.family}</span>
+        <span className="family">{copy.familyFi}</span>
       </p>
+
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        copy={copy}
+        provider={provider}
+        model={model}
+        hasKey={Boolean(apiKey)}
+        onProvider={setProvider}
+        onModel={setModel}
+        onSaveKey={(key) => {
+          saveDeepSeekKey(key);
+          setApiKey(key);
+        }}
+        onClearKey={() => {
+          saveDeepSeekKey("");
+          setApiKey("");
+        }}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isBarrelContract, positionPnl, projectionBand, shockPrice } from "../lib/desk";
 import { formatPercent, tone } from "../lib/format";
+import { fill, type Copy } from "../lib/i18n";
 import { formatMoney, fromDisplay, toDisplay } from "../lib/money";
 import type { DeskCurrency, Quote } from "../lib/types";
 
@@ -11,11 +12,12 @@ type Props = {
   quote?: Quote;
   currency: DeskCurrency;
   rate: number;
+  copy: Copy;
 };
 
 const SIZE_KEY = "jarkkocomms-size";
 
-export function DeskTools({ symbol, ticker, unit, quote, currency, rate }: Props) {
+export function DeskTools({ symbol, ticker, unit, quote, currency, rate, copy }: Props) {
   const barrels = isBarrelContract(symbol);
   const last = quote?.price ?? null;
   const lastDisplay = toDisplay(last, barrels ? "USD / bbl" : unit, currency, rate);
@@ -63,19 +65,19 @@ export function DeskTools({ symbol, ticker, unit, quote, currency, rate }: Props
 
   return (
     <section className="panel">
-      <h2>Position sketch</h2>
+      <h2>{copy.position}</h2>
       <p className="name">
         {barrels
-          ? `What-if on ${ticker} in barrels. P&L is notional only.`
-          : `What-if notional on ${ticker} in ${currency}.`}
+          ? fill(copy.whatIfBarrels, { ticker })
+          : fill(copy.whatIfNotional, { ticker, currency })}
       </p>
       <div className="alert-form desk-form">
         <label>
-          {barrels ? "Barrels" : `${currency} notional`}
+          {barrels ? copy.barrels : fill(copy.notional, { currency })}
           <input inputMode="decimal" value={size} onChange={(event) => setSize(event.target.value)} />
         </label>
         <label>
-          Target
+          {copy.target}
           <input inputMode="decimal" value={target} onChange={(event) => setTarget(event.target.value)} />
         </label>
       </div>
@@ -89,8 +91,8 @@ export function DeskTools({ symbol, ticker, unit, quote, currency, rate }: Props
         ))}
       </div>
 
-      <h3 className="subhead">Range illustration</h3>
-      <p className="name">Last print against the 52-week band and a ±5% path. Not a forecast.</p>
+      <h3 className="subhead">{copy.rangeTitle}</h3>
+      <p className="name">{copy.rangeNote}</p>
       {band ? (
         <dl className="details compact">
           <div>
@@ -117,7 +119,7 @@ export function DeskTools({ symbol, ticker, unit, quote, currency, rate }: Props
           </div>
         </dl>
       ) : (
-        <p className="name">Using last print as soon as the tape is up.</p>
+        <p className="name">{copy.usingLast}</p>
       )}
     </section>
   );

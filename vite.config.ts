@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { runBrief } from "./server/brief.mjs";
 import { fetchChart, fetchFx, fetchQuotes } from "./server/market.mjs";
 
 function sendJson(res: ServerResponse, status: number, body: unknown) {
@@ -35,6 +36,26 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<boo
   }
   if (url.pathname === "/api/health") {
     sendJson(res, 200, { ok: true });
+    return true;
+  }
+  if (url.pathname === "/api/brief") {
+    const chunks: Buffer[] = [];
+    await new Promise<void>((resolve, reject) => {
+      req.on("data", (chunk) => chunks.push(chunk as Buffer));
+      req.on("end", () => resolve());
+      req.on("error", reject);
+    });
+    const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {};
+    const headerKey = String(req.headers["x-deepseek-key"] ?? "");
+    const result = await runBrief({
+      key: headerKey,
+      model: body?.model,
+      messages: [
+        { role: "system", content: "You are a concise commodities desk assistant. Not investment advice. Use only the supplied quotes." },
+        { role: "user", content: `${body?.prompt ?? ""}\n\nContext:\n${JSON.stringify(body?.context ?? {})}` },
+      ],
+    });
+    sendJson(res, 200, result);
     return true;
   }
   return false;
