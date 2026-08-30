@@ -84,6 +84,30 @@ export default {
           range, interval, source: "yahoo", points,
         });
       }
+      if (url.pathname === "/api/brief") {
+        if (request.method !== "POST") return Response.json({ error: "POST required" }, { status: 405 });
+        const body = await request.json();
+        const key = request.headers.get("x-deepseek-key") || "";
+        if (!key) return Response.json({ error: "DeepSeek key missing" }, { status: 401 });
+        const model = body?.model === "deepseek-v4-pro" ? "deepseek-v4-pro" : "deepseek-v4-flash";
+        const upstream = await fetch("https://api.deepseek.com/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+          body: JSON.stringify({
+            model,
+            stream: false,
+            max_tokens: 500,
+            thinking: { type: "disabled" },
+            messages: [
+              { role: "system", content: "You are a concise commodities desk assistant. Not investment advice. Use only the supplied quotes." },
+              { role: "user", content: `${body?.prompt ?? ""}\n\nContext:\n${JSON.stringify(body?.context ?? {})}` },
+            ],
+          }),
+        });
+        const payload = await upstream.json().catch(() => ({}));
+        if (!upstream.ok) return Response.json({ error: payload?.error?.message || `DeepSeek ${upstream.status}` }, { status: upstream.status === 401 ? 401 : 502 });
+        return Response.json({ text: payload?.choices?.[0]?.message?.content ?? "", model, billedTo: "your DeepSeek account" });
+      }
     } catch (error) {
       return Response.json({ error: error instanceof Error ? error.message : "API failed" }, { status: 502 });
     }

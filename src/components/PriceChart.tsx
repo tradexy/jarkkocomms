@@ -12,6 +12,8 @@ type Props = {
   currency: DeskCurrency;
   rate: number;
   source?: string;
+  sketchLabel?: string;
+  historyLabel?: string;
 };
 
 function rail(
@@ -43,7 +45,18 @@ function rail(
   );
 }
 
-export function PriceChart({ points, overlay, overlayName, quote, unit, currency, rate, source }: Props) {
+export function PriceChart({
+  points,
+  overlay,
+  overlayName,
+  quote,
+  unit,
+  currency,
+  rate,
+  source,
+  sketchLabel = "Session sketch — live history paused",
+  historyLabel = "Front-month history",
+}: Props) {
   const cents = currency === "USD" && !!unit?.startsWith("¢");
   const data = points.map((point, index) => {
     const twin = overlay?.[Math.round((index / Math.max(1, points.length - 1)) * Math.max(0, (overlay?.length ?? 1) - 1))]?.close;
@@ -106,7 +119,7 @@ export function PriceChart({ points, overlay, overlayName, quote, unit, currency
         {rail("Session range", quote?.dayLow, quote?.dayHigh, quote?.price, unit, currency, rate)}
         {rail("52-week range", quote?.week52Low, quote?.week52High, quote?.price, unit, currency, rate)}
       </div>
-      <p className="chart-source">{source === "sketch" ? "Session sketch — live history paused" : "Front-month history"}</p>
+      <p className="chart-source">{source === "sketch" ? sketchLabel : historyLabel}</p>
     </div>
   );
 }

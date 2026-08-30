@@ -23,3 +23,21 @@ export async function loadChart(symbol: string, range: RangeKey) {
 export async function loadFx() {
   return readJson<FxBook>("/api/fx");
 }
+
+export async function requestBrief(
+  body: { prompt: string; model: string; context: unknown },
+  key: string,
+) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (key) headers["x-deepseek-key"] = key;
+  const response = await fetch("/api/brief", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || `Brief failed (${response.status})`);
+  }
+  return payload as { text: string; model: string };
+}
