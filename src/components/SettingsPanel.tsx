@@ -13,6 +13,11 @@ type Props = {
   onModel: (model: LlmModelId) => void;
   onSaveKey: (key: string) => void;
   onClearKey: () => void;
+  briefBusy?: boolean;
+  briefText?: string;
+  briefError?: string | null;
+  onBriefContract?: () => void;
+  onBriefSpread?: () => void;
 };
 
 export function SettingsPanel({
@@ -26,6 +31,11 @@ export function SettingsPanel({
   onModel,
   onSaveKey,
   onClearKey,
+  briefBusy = false,
+  briefText = "",
+  briefError = null,
+  onBriefContract,
+  onBriefSpread,
 }: Props) {
   const [draft, setDraft] = useState("");
   if (!open) return null;
@@ -41,7 +51,7 @@ export function SettingsPanel({
     <div className="settings-scrim" onClick={onClose}>
       <section className="settings-panel" onClick={(event) => event.stopPropagation()}>
         <div className="panel-head">
-          <h2>{copy.settings}</h2>
+          <h2>{copy.extras}</h2>
           <button type="button" className="ghost" onClick={onClose}>
             {copy.close}
           </button>
@@ -87,6 +97,18 @@ export function SettingsPanel({
                 </button>
               )}
             </form>
+            {hasKey && onBriefContract && onBriefSpread && (
+              <div className="voice-actions">
+                <button type="button" className="chip" disabled={briefBusy} onClick={onBriefContract}>
+                  {briefBusy ? copy.briefing : copy.briefContract}
+                </button>
+                <button type="button" className="chip" disabled={briefBusy} onClick={onBriefSpread}>
+                  {copy.briefSpread}
+                </button>
+              </div>
+            )}
+            {hasKey && briefError && <p className="banner">{briefError}</p>}
+            {hasKey && briefText && <p className="brief-body">{briefText}</p>}
           </>
         ) : (
           <p className="name">{copy.comingSoon}</p>

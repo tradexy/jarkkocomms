@@ -21,7 +21,7 @@ Open [http://127.0.0.1:5176](http://127.0.0.1:5176).
 - Watchlist and price alerts in the browser
 - FI / EN language toggle (defaults to Finnish when the browser language is `fi*`)
 - Installable PWA; voice read-out via the browser Web Speech API (no key)
-- Optional DeepSeek briefs if you paste your own key in Settings (`deepseek-v4-flash` or `deepseek-v4-pro`). DeepSeek bills your account.
+- Optional DeepSeek briefs stay hidden until you open **Lisäpalvelut / Additional** and paste your own key (`deepseek-v4-flash` or `deepseek-v4-pro`). No key is shipped; DeepSeek bills your account if you use it.
 
 Quotes are delayed exchange prints — not a trading feed. The core desk is free: no JarkkoComms API keys.
 

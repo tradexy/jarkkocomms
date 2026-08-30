@@ -7,7 +7,7 @@ function pickModel(requested) {
 }
 
 export async function runBrief({ key, model, messages }) {
-  if (!key || typeof key !== "string") {
+  if (!key || typeof key !== "string" || !key.trim()) {
     const error = new Error("DeepSeek key missing");
     error.status = 401;
     throw error;

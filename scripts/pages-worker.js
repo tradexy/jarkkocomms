@@ -24,7 +24,7 @@ export default {
       if (url.pathname === "/api/brief") {
         if (request.method !== "POST") return Response.json({ error: "POST required" }, { status: 405 });
         const body = await request.json();
-        const key = request.headers.get("x-deepseek-key") || env.DEEPSEEK_API_KEY || "";
+        const key = request.headers.get("x-deepseek-key") || "";
         return Response.json(
           await runBrief({
             key,
